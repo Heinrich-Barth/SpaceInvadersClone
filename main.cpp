@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include <SDL2/SDL.h>
+#include <vector>
 
 #include "SDLApplication.h"
 #include "BackgroundAnimation.h"
@@ -8,79 +9,119 @@
 #include "Enemy.h"
 #include "NightSky.h"
 #include "BattleShip.h"
+#include "Missile.h"
+
+void removeInvisibleMissiles(std::vector<std::unique_ptr<Missile>> *list)
+{
+	for(std::vector<std::unique_ptr<Missile>>::iterator iter = list->begin(); iter != list->end(); ++iter )
+	{
+		std::unique_ptr<Missile> &elem = *iter;
+	    if (!elem->isVisible())
+	    {
+			iter = list->erase( iter );
+			iter--;
+	    }
+	}
+}
 
 bool runApp()
 {
-    SDLApplication application{};
+	SDLApplication application = SDLApplication();
 
-    if (!application.init())
-    	return false;
+	if (!application.init())
+		return false;
 
-    BackgroundAnimation background = BackgroundAnimation(&application);
-    Enemies enemies = Enemies(&application);
-    BattleShip ship = BattleShip();
+	BackgroundAnimation background = BackgroundAnimation(&application);
+	Enemies enemies = Enemies(&application);
+	BattleShip ship = BattleShip();
 
+	constexpr size_t maxMissilesShip = 5;
+	constexpr size_t maxMissilesEnemies = 5;
 
-    bool gameIsRunning = background.load(&application) &&
-    	    enemies.load() &&
-    	    ship.load(&application);
+	std::vector<std::unique_ptr<Missile>> shipMissiles = {};
 
-    while(gameIsRunning)
-    {
-    	Uint32 start = SDL_GetTicks();
+	bool gameIsRunning = background.load(&application)
+			&& enemies.load()
+			&& ship.load(&application);
 
-        SDL_Event event;
+	bool removeMissiles;
+	SDL_Event event;
+	while (gameIsRunning)
+	{
+		Uint32 start = SDL_GetTicks();
 
-        while(SDL_PollEvent(&event))
-        {
-            if(event.type == SDL_QUIT)
-                gameIsRunning= false;
-            if(event.type == SDL_MOUSEMOTION)
-		ship.move(event.motion.x, event.motion.y);
+		while (SDL_PollEvent(&event))
+		{
+			if (event.type == SDL_QUIT)
+				gameIsRunning = false;
 
-/*
-	    if(event.type == SDL_MOUSEBUTTONDOWN)
-            {
-                if(event.button.button == SDL_BUTTON_LEFT)
-                    SDL_SetTextureBlendMode(texture2,SDL_BLENDMODE_ADD);
-                else if(event.button.button == SDL_BUTTON_MIDDLE)
-                    SDL_SetTextureBlendMode(texture2,SDL_BLENDMODE_BLEND);
-                else if(event.button.button == SDL_BUTTON_RIGHT)
-                    SDL_SetTextureBlendMode(texture2,SDL_BLENDMODE_MOD);
-            }
-*/
-            if(event.type == SDL_KEYUP)
-            {
-		if(event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_q)
-			gameIsRunning = false;
-            }
-        }
-        
-        application.prepareFrame();
+			if (event.type == SDL_MOUSEBUTTONUP&& event.button.button == SDL_BUTTON_LEFT && shipMissiles.size() < maxMissilesShip)
+			{
+				SDL_Rect shipPosition = ship.getPosition();
+				shipMissiles.push_back(std::make_unique<Missile>(shipPosition.x, shipPosition.y, 0, true));
+				std::cout << "missile launched" << std::endl;
+			}
 
-        background.tick(start);
+			if (event.type == SDL_MOUSEMOTION)
+			{
+				int x, y;
+				SDL_GetMouseState( &x, &y );
+				ship.move(x, y);
+			}
 
-	water.display(&application);
-	enemies.display();
-	ship.display(&application);
+			if (event.type == SDL_KEYUP)
+			{
+				if (event.key.keysym.sym == SDLK_ESCAPE
+						|| event.key.keysym.sym == SDLK_q)
+					gameIsRunning = false;
+			}
+		}
 
-        application.displayFrame();
+		application.prepareFrame();
 
-        enemies.move(20, 20, application.getWidth() - 20, application.getHeight() - 20);
-    }
+		background.tick(start);
 
-    background.destroy();
-    enemies.destroy();
-    ship.destroy();
-    
-    // the application window needs to be destroyed last
-    // wrapped in its own scope, destroying all objects
-    // could be done automatically via destructor calls
-    return true;
+		background.display(&application);
+		enemies.display();
+		ship.display(&application);
+
+		for (std::unique_ptr<Missile> &missile : shipMissiles)
+			missile->display(&application);
+
+		application.displayFrame();
+
+		enemies.move(20, 20, application.getWidth() - 20,
+				application.getHeight() - 20);
+
+		removeMissiles = false;
+
+		for (std::unique_ptr<Missile> &missile : shipMissiles)
+		{
+			if (!missile->move(start))
+				removeMissiles = true;
+		}
+
+		if (removeMissiles)
+		{
+			std::cout << "remove needed" << std::endl;
+			removeInvisibleMissiles(&shipMissiles);
+		}
+	}
+
+	background.destroy();
+	enemies.destroy();
+	ship.destroy();
+
+	// the application window needs to be destroyed last
+	// wrapped in its own scope, destroying all objects
+	// could be done automatically via destructor calls
+	return true;
 }
 
-void main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-    if (runApp())
-    	SDL_Quit();
+	if (runApp())
+		SDL_Quit();
+
+	return 0;
 }

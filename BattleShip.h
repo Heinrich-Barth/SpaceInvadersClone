@@ -41,6 +41,8 @@ public:
 	void destroy();
 
 	void move(int x, int y);
+
+	SDL_Rect getPosition();
 };
 
 #endif /* BATTLESHIP_H_ */

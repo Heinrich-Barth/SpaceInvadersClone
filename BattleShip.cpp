@@ -87,7 +87,6 @@ void BattleShip::move(int x, int y)
 	position.x = offsetX;
 }
 
-
 void BattleShip::destroy()
 {
 	if (texture != nullptr)
@@ -97,3 +96,8 @@ void BattleShip::destroy()
 	}
 }
 
+
+SDL_Rect BattleShip::getPosition()
+{
+	return position;
+}
